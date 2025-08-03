@@ -4,6 +4,9 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Textarea } from '@/components/ui/textarea';
+import { Label } from '@/components/ui/label';
 import Icon from '@/components/ui/icon';
 
 interface Product {
@@ -23,8 +26,11 @@ const Index = () => {
   const [selectedSize, setSelectedSize] = useState<string>('all');
   const [searchTerm, setSearchTerm] = useState('');
   const [isCartOpen, setIsCartOpen] = useState(false);
+  const [isAdmin, setIsAdmin] = useState(false);
+  const [isAddProductOpen, setIsAddProductOpen] = useState(false);
+  const [editingProduct, setEditingProduct] = useState<Product | null>(null);
 
-  const products: Product[] = [
+  const [products, setProducts] = useState<Product[]>([
     {
       id: 1,
       name: 'Стильный худи',
@@ -85,7 +91,17 @@ const Index = () => {
       description: 'Классические прямые джинсы',
       inStock: true
     }
-  ];
+  ]);
+
+  const [newProduct, setNewProduct] = useState<Omit<Product, 'id'>>({
+    name: '',
+    price: 0,
+    category: 'одежда',
+    size: [],
+    image: '',
+    description: '',
+    inStock: true
+  });
 
   const filteredProducts = products.filter(product => {
     const matchesCategory = selectedCategory === 'all' || product.category === selectedCategory;
@@ -120,6 +136,50 @@ const Index = () => {
     return cartItems.reduce((total, item) => total + item.quantity, 0);
   };
 
+  const addProduct = () => {
+    if (newProduct.name && newProduct.price > 0) {
+      const product: Product = {
+        ...newProduct,
+        id: Math.max(...products.map(p => p.id), 0) + 1,
+        size: newProduct.size.length > 0 ? newProduct.size : ['ONE SIZE']
+      };
+      setProducts([...products, product]);
+      setNewProduct({
+        name: '',
+        price: 0,
+        category: 'одежда',
+        size: [],
+        image: '',
+        description: '',
+        inStock: true
+      });
+      setIsAddProductOpen(false);
+    }
+  };
+
+  const updateProduct = (updatedProduct: Product) => {
+    setProducts(products.map(p => p.id === updatedProduct.id ? updatedProduct : p));
+    setEditingProduct(null);
+  };
+
+  const deleteProduct = (productId: number) => {
+    setProducts(products.filter(p => p.id !== productId));
+  };
+
+  const handleSizeChange = (size: string, checked: boolean) => {
+    if (editingProduct) {
+      const newSizes = checked 
+        ? [...editingProduct.size, size]
+        : editingProduct.size.filter(s => s !== size);
+      setEditingProduct({...editingProduct, size: newSizes});
+    } else {
+      const newSizes = checked 
+        ? [...newProduct.size, size]
+        : newProduct.size.filter(s => s !== size);
+      setNewProduct({...newProduct, size: newSizes});
+    }
+  };
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-light-gray to-white">
       {/* Header */}
@@ -138,6 +198,15 @@ const Index = () => {
             </nav>
 
             <div className="flex items-center space-x-4">
+              <Button 
+                variant={isAdmin ? "default" : "ghost"} 
+                size="sm"
+                onClick={() => setIsAdmin(!isAdmin)}
+                className={isAdmin ? "bg-bright-orange hover:bg-bright-orange/90" : ""}
+              >
+                <Icon name="Settings" size={16} className="mr-1" />
+                {isAdmin ? "Владелец" : "Админ"}
+              </Button>
               <Button variant="ghost" size="icon">
                 <Icon name="User" size={20} />
               </Button>
@@ -168,6 +237,105 @@ const Index = () => {
           </div>
           <div className="w-20 h-1 bg-gradient-to-r from-bright-orange to-cyan-blue mx-auto rounded-full"></div>
         </section>
+
+        {/* Admin Panel */}
+        {isAdmin && (
+          <section className="mb-8 p-6 bg-gradient-to-r from-bright-orange/10 to-cyan-blue/10 rounded-lg border-2 border-bright-orange/20">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-xl font-semibold text-navy-blue">Панель управления</h3>
+              <Dialog open={isAddProductOpen} onOpenChange={setIsAddProductOpen}>
+                <DialogTrigger asChild>
+                  <Button className="bg-bright-orange hover:bg-bright-orange/90 text-white">
+                    <Icon name="Plus" size={16} className="mr-2" />
+                    Добавить товар
+                  </Button>
+                </DialogTrigger>
+                <DialogContent className="max-w-2xl">
+                  <DialogHeader>
+                    <DialogTitle>Добавить новый товар</DialogTitle>
+                  </DialogHeader>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <Label htmlFor="name">Название товара</Label>
+                      <Input
+                        id="name"
+                        value={newProduct.name}
+                        onChange={(e) => setNewProduct({...newProduct, name: e.target.value})}
+                        placeholder="Введите название"
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="price">Цена (₽)</Label>
+                      <Input
+                        id="price"
+                        type="number"
+                        value={newProduct.price}
+                        onChange={(e) => setNewProduct({...newProduct, price: Number(e.target.value)})}
+                        placeholder="Введите цену"
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="category">Категория</Label>
+                      <Select value={newProduct.category} onValueChange={(value) => setNewProduct({...newProduct, category: value})}>
+                        <SelectTrigger>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="одежда">Одежда</SelectItem>
+                          <SelectItem value="аксессуары">Аксессуары</SelectItem>
+                          <SelectItem value="обувь">Обувь</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div>
+                      <Label htmlFor="image">URL изображения</Label>
+                      <Input
+                        id="image"
+                        value={newProduct.image}
+                        onChange={(e) => setNewProduct({...newProduct, image: e.target.value})}
+                        placeholder="/img/example.jpg"
+                      />
+                    </div>
+                    <div className="col-span-2">
+                      <Label htmlFor="description">Описание</Label>
+                      <Textarea
+                        id="description"
+                        value={newProduct.description}
+                        onChange={(e) => setNewProduct({...newProduct, description: e.target.value})}
+                        placeholder="Описание товара"
+                        rows={3}
+                      />
+                    </div>
+                    <div className="col-span-2">
+                      <Label>Размеры</Label>
+                      <div className="grid grid-cols-4 gap-2 mt-2">
+                        {['XS', 'S', 'M', 'L', 'XL', 'ONE SIZE', '36', '37', '38', '39', '40', '41', '42', '43'].map(size => (
+                          <label key={size} className="flex items-center space-x-2">
+                            <input
+                              type="checkbox"
+                              checked={newProduct.size.includes(size)}
+                              onChange={(e) => handleSizeChange(size, e.target.checked)}
+                            />
+                            <span className="text-sm">{size}</span>
+                          </label>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                  <div className="flex justify-end space-x-2 mt-4">
+                    <Button variant="outline" onClick={() => setIsAddProductOpen(false)}>
+                      Отмена
+                    </Button>
+                    <Button onClick={addProduct} className="bg-bright-orange hover:bg-bright-orange/90">
+                      Добавить товар
+                    </Button>
+                  </div>
+                </DialogContent>
+              </Dialog>
+            </div>
+            <p className="text-gray-600">Всего товаров: {products.length}</p>
+          </section>
+        )}
 
         {/* Filters */}
         <section className="mb-8">
@@ -252,14 +420,36 @@ const Index = () => {
                   <span className="text-2xl font-bold text-navy-blue">
                     {product.price.toLocaleString()} ₽
                   </span>
-                  <Button
-                    onClick={() => addToCart(product)}
-                    disabled={!product.inStock}
-                    className="bg-bright-orange hover:bg-bright-orange/90 text-white px-6"
-                  >
-                    <Icon name="Plus" size={16} className="mr-1" />
-                    В корзину
-                  </Button>
+                  <div className="flex space-x-2">
+                    {isAdmin && (
+                      <div className="flex space-x-1">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => setEditingProduct(product)}
+                          className="text-xs px-2 py-1"
+                        >
+                          <Icon name="Edit" size={12} />
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="destructive"
+                          onClick={() => deleteProduct(product.id)}
+                          className="text-xs px-2 py-1"
+                        >
+                          <Icon name="Trash2" size={12} />
+                        </Button>
+                      </div>
+                    )}
+                    <Button
+                      onClick={() => addToCart(product)}
+                      disabled={!product.inStock}
+                      className="bg-bright-orange hover:bg-bright-orange/90 text-white px-6"
+                    >
+                      <Icon name="Plus" size={16} className="mr-1" />
+                      В корзину
+                    </Button>
+                  </div>
                 </div>
               </CardContent>
             </Card>
@@ -332,6 +522,99 @@ const Index = () => {
               </div>
             </div>
           </div>
+        )}
+
+        {/* Edit Product Dialog */}
+        {editingProduct && (
+          <Dialog open={!!editingProduct} onOpenChange={() => setEditingProduct(null)}>
+            <DialogContent className="max-w-2xl">
+              <DialogHeader>
+                <DialogTitle>Редактировать товар</DialogTitle>
+              </DialogHeader>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label htmlFor="edit-name">Название товара</Label>
+                  <Input
+                    id="edit-name"
+                    value={editingProduct.name}
+                    onChange={(e) => setEditingProduct({...editingProduct, name: e.target.value})}
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="edit-price">Цена (₽)</Label>
+                  <Input
+                    id="edit-price"
+                    type="number"
+                    value={editingProduct.price}
+                    onChange={(e) => setEditingProduct({...editingProduct, price: Number(e.target.value)})}
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="edit-category">Категория</Label>
+                  <Select value={editingProduct.category} onValueChange={(value) => setEditingProduct({...editingProduct, category: value})}>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="одежда">Одежда</SelectItem>
+                      <SelectItem value="аксессуары">Аксессуары</SelectItem>
+                      <SelectItem value="обувь">Обувь</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <Label htmlFor="edit-image">URL изображения</Label>
+                  <Input
+                    id="edit-image"
+                    value={editingProduct.image}
+                    onChange={(e) => setEditingProduct({...editingProduct, image: e.target.value})}
+                  />
+                </div>
+                <div className="col-span-2">
+                  <Label htmlFor="edit-description">Описание</Label>
+                  <Textarea
+                    id="edit-description"
+                    value={editingProduct.description}
+                    onChange={(e) => setEditingProduct({...editingProduct, description: e.target.value})}
+                    rows={3}
+                  />
+                </div>
+                <div className="col-span-2">
+                  <Label>Размеры</Label>
+                  <div className="grid grid-cols-4 gap-2 mt-2">
+                    {['XS', 'S', 'M', 'L', 'XL', 'ONE SIZE', '36', '37', '38', '39', '40', '41', '42', '43'].map(size => (
+                      <label key={size} className="flex items-center space-x-2">
+                        <input
+                          type="checkbox"
+                          checked={editingProduct.size.includes(size)}
+                          onChange={(e) => handleSizeChange(size, e.target.checked)}
+                        />
+                        <span className="text-sm">{size}</span>
+                      </label>
+                    ))}
+                  </div>
+                </div>
+                <div className="col-span-2">
+                  <label className="flex items-center space-x-2">
+                    <input
+                      type="checkbox"
+                      checked={editingProduct.inStock}
+                      onChange={(e) => setEditingProduct({...editingProduct, inStock: e.target.checked})}
+                    />
+                    <span>В наличии</span>
+                  </label>
+                </div>
+              </div>
+              <div className="flex justify-end space-x-2 mt-4">
+                <Button variant="outline" onClick={() => setEditingProduct(null)}>
+                  Отмена
+                </Button>
+                <Button onClick={() => updateProduct(editingProduct)} className="bg-bright-orange hover:bg-bright-orange/90">
+                  Сохранить изменения
+                </Button>
+              </div>
+            </DialogContent>
+          </Dialog>
         )}
 
         {/* Footer Navigation */}
